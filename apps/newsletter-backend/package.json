@@ -1,0 +1,15 @@
+{
+  "name": "newsletter-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "build": "python -m compileall app/",
+    "lint": "ruff check .",
+    "lint:fix": "ruff check --fix .",
+    "format": "ruff format .",
+    "install": "pip install -r requirements.txt",
+    "db:init": "python -c 'from app.database import init_db; init_db()'",
+    "test": "pytest"
+  }
+}
