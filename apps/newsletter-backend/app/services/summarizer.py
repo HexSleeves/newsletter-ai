@@ -8,6 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,13 @@ from app.logging_config import get_logger
 from app.models import Article
 from app.prompts import format_prompt, get_prompt, truncate_content
 from config import LLMProvider, get_settings
+
+
+class SummarizationError(Exception):
+    """Raised when article summarization fails after all retry attempts."""
+
+    pass
+
 
 logger = get_logger(__name__)
 
@@ -32,7 +40,7 @@ def get_llm() -> BaseChatModel:
                 logger.info("Initializing Anthropic model: %s", model)
                 return ChatAnthropic(
                     model=model,
-                    api_key=settings.anthropic_api_key,
+                    api_key=SecretStr(settings.anthropic_api_key),
                     # max_tokens=200,
                     timeout=30,
                 )
@@ -43,7 +51,7 @@ def get_llm() -> BaseChatModel:
                 logger.info("Initializing OpenAI model: %s", model)
                 return ChatOpenAI(
                     model=model,
-                    api_key=settings.openai_api_key,
+                    api_key=SecretStr(settings.openai_api_key),
                     # max_tokens=200,
                     timeout=30,
                 )
@@ -54,7 +62,7 @@ def get_llm() -> BaseChatModel:
                 logger.info("Initializing Gemini model: %s", model)
                 return ChatGoogleGenerativeAI(
                     model=model,
-                    google_api_key=settings.google_api_key,
+                    google_api_key=SecretStr(settings.google_api_key),
                     # max_output_tokens=200,
                     timeout=30,
                 )
@@ -65,7 +73,7 @@ def get_llm() -> BaseChatModel:
                 logger.info("Initializing OpenRouter model: %s", model)
                 return ChatOpenAI(
                     model=model,
-                    api_key=settings.openrouter_api_key,
+                    api_key=SecretStr(settings.openrouter_api_key),
                     base_url="https://openrouter.ai/api/v1",
                     # max_tokens=200,
                     timeout=30,
@@ -78,7 +86,7 @@ def get_llm() -> BaseChatModel:
                 return ChatOpenAI(
                     model=model,
                     temperature=0.6,
-                    openai_api_key=settings.z_ai_api_key,
+                    openai_api_key=SecretStr(settings.z_ai_api_key),
                     # openai_api_base="https://api.z.ai/api/paas/v4/",
                     openai_api_base="https://api.z.ai/api/anthropic",
                 )
@@ -177,7 +185,7 @@ class ArticleSummarizer:
                     if attempt < max_retries - 1:
                         time.sleep(2**attempt)  # Exponential backoff
                     else:
-                        raise Exception(
+                        raise SummarizationError(
                             f"Failed to summarize article {article.id} after {max_retries} "
                             f"attempts: {str(e)}"
                         ) from e

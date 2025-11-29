@@ -36,3 +36,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["BLE001"]
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = ["broad-exception-caught"]

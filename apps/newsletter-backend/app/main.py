@@ -11,7 +11,7 @@ from app.logging_config import setup_logging
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """Initialize database and logging on startup."""
     setup_logging()
     init_db()
