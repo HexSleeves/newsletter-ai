@@ -1,33 +1,68 @@
-# `Turborepo` Vite starter
+# Newsletter AI Backend
 
-This is a community-maintained example. If you experience a problem, please submit a pull request with a fix. GitHub Issues will be closed.
+Python FastAPI backend for fetching news articles, summarizing them with LLM, and generating newsletters.
 
-## Using this example
+## Setup
 
-Run the following command:
+1. **Install dependencies:**
 
-```sh
-npx create-turbo@latest -e with-vite
+```bash
+pip install -r requirements.txt
 ```
 
-## What's inside?
+2. **Configure environment:**
 
-This Turborepo includes the following packages and apps:
+```bash
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+```
 
-### Apps and Packages
+3. **Run the server:**
 
-- `docs`: a vanilla [vite](https://vitejs.dev) ts app
-- `web`: another vanilla [vite](https://vitejs.dev) ts app
-- `@repo/ui`: a stub component & utility library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: shared `eslint` configurations
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+```bash
+uvicorn app.main:app --reload
+```
 
-Each package and app is 100% [TypeScript](https://www.typescriptlang.org/).
+Server runs at `http://localhost:8000`
 
-### Utilities
+## API Endpoints
 
-This Turborepo has some additional tools already setup for you:
+### Articles
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+- `POST /api/articles/fetch` - Fetch and summarize latest articles from RSS feeds
+- `GET /api/articles` - List recent articles (default: 20)
+- `GET /api/articles/{id}` - Get specific article
+
+### Newsletters
+
+- `POST /api/newsletter/generate?days=1` - Generate newsletter from recent articles
+- `GET /api/newsletter` - List recent newsletters
+- `GET /api/newsletter/{id}` - Get newsletter HTML
+
+## Usage Example
+
+```bash
+# 1. Fetch articles from RSS feeds
+curl -X POST http://localhost:8000/api/articles/fetch
+
+# 2. Generate newsletter
+curl -X POST http://localhost:8000/api/newsletter/generate?days=1
+
+# 3. View newsletter
+curl http://localhost:8000/api/newsletter/1
+```
+
+## Configuration
+
+Edit `.env` to configure:
+
+- `ANTHROPIC_API_KEY` - Your Anthropic API key
+- `RSS_FEEDS` - Comma-separated list of RSS feed URLs
+
+## Tech Stack
+
+- FastAPI - Web framework
+- SQLAlchemy - ORM with SQLite
+- feedparser - RSS feed parsing
+- Anthropic Claude - Article summarization
+- Jinja2 - Newsletter HTML templates
