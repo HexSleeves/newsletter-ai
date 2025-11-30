@@ -1,11 +1,12 @@
 """Main FastAPI application."""
 
+import warnings
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router
+from app.api.routes import router as api_router
 from app.database import init_db
 from app.logging_config import setup_logging
 
@@ -13,12 +14,12 @@ from app.logging_config import setup_logging
 # This is a known issue with langchain-core's internal compatibility shims
 # and doesn't affect functionality since we're using Pydantic V2
 # Must be set before any langchain imports
-# warnings.filterwarnings(
-#     "ignore",
-#     message="Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.",
-#     category=UserWarning,
-#     module="langchain_core._api.deprecation",
-# )
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module="langchain_core._api.deprecation",
+    message="Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.",
+)
 
 
 @asynccontextmanager
@@ -30,12 +31,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
+    version="0.1.0",
+    lifespan=lifespan,
     title="Newsletter AI Backend",
     description=(
         "Backend service for fetching, summarizing, and generating newsletters from news articles"
     ),
-    version="0.1.0",
-    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -47,8 +48,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
-app.include_router(router, prefix="/api")
+# Include API router (async or sync based on availability)
+app.include_router(api_router, prefix="/api")
 
 
 @app.get("/")

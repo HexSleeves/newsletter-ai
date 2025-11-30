@@ -119,8 +119,12 @@
       <h1>Newsletter Archive</h1>
 
       <div class="subscribe-section">
-        <h2 style="margin-top: 0; color: #2c3e50;">Subscribe to our newsletter</h2>
-        <p style="color: #7f8c8d;">Get the latest tech news delivered to your inbox.</p>
+        <h2 style="margin-top: 0; color: #2c3e50">
+          Subscribe to our newsletter
+        </h2>
+        <p style="color: #7f8c8d">
+          Get the latest tech news delivered to your inbox.
+        </p>
         <form class="subscribe-form" onsubmit="handleSubscribe(event)">
           <input
             type="email"
@@ -133,13 +137,15 @@
         <div id="message" class="message"></div>
       </div>
 
-      <h2 style="color: #2c3e50;">Past Newsletters</h2>
+      <h2 style="color: #2c3e50">Past Newsletters</h2>
       {% if newsletters %}
       <ul class="newsletter-list">
         {% for newsletter in newsletters %}
         <li class="newsletter-item">
           <div class="newsletter-title">
-            <a href="/api/newsletter/{{ newsletter.id }}">{{ newsletter.title }}</a>
+            <a href="/api/newsletter/{{ newsletter.id }}"
+              >{{ newsletter.title }}</a
+            >
           </div>
           <div class="newsletter-date">
             {{ newsletter.created_at.strftime('%B %d, %Y at %I:%M %p') }}
@@ -148,7 +154,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <p style="color: #7f8c8d; text-align: center; padding: 40px;">
+      <p style="color: #7f8c8d; text-align: center; padding: 40px">
         No newsletters available yet. Check back soon!
       </p>
       {% endif %}
@@ -161,28 +167,31 @@
     <script>
       async function handleSubscribe(event) {
         event.preventDefault();
-        const emailInput = document.getElementById('email');
-        const message = document.getElementById('message');
+        const emailInput = document.getElementById("email");
+        const message = document.getElementById("message");
         const email = emailInput.value;
 
         try {
-          const response = await fetch('/api/subscribe?email=' + encodeURIComponent(email), {
-            method: 'POST',
-          });
+          const response = await fetch(
+            "/api/subscribe?email=" + encodeURIComponent(email),
+            {
+              method: "POST",
+            }
+          );
 
           const data = await response.json();
 
           message.textContent = data.message;
-          message.className = 'message ' + (response.ok ? 'success' : 'error');
-          message.style.display = 'block';
+          message.className = "message " + (response.ok ? "success" : "error");
+          message.style.display = "block";
 
           if (response.ok) {
-            emailInput.value = '';
+            emailInput.value = "";
           }
         } catch (error) {
-          message.textContent = 'An error occurred. Please try again.';
-          message.className = 'message error';
-          message.style.display = 'block';
+          message.textContent = "An error occurred. Please try again.";
+          message.className = "message error";
+          message.style.display = "block";
         }
       }
     </script>

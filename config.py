@@ -35,6 +35,9 @@ class LLMProvider(str, Enum):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    # Logging
+    log_level: str | None = "INFO"
+
     # LLM Configuration
     llm_provider: LLMProvider = LLMProvider.OPENAI
     llm_model: str | None = None  # If not set, uses provider default

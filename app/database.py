@@ -24,7 +24,6 @@ class Base(DeclarativeBase):
     """Base class for all database models."""
 
 
-
 def get_db():
     """Dependency to get database session."""
     db = SessionLocal()

@@ -1,4 +1,4 @@
-"""Service for generating newsletters from articles."""
+"""Async newsletter generator service."""
 
 from datetime import datetime, timedelta
 
@@ -17,12 +17,12 @@ class NewsletterGenerator:
         self.db = db
         self.logger = get_logger(__name__)
         try:
-            self.env = Environment(loader=FileSystemLoader("app/templates"))
+            self.env = Environment(loader=FileSystemLoader("app/templates"), enable_async=True)
         except Exception as e:
             self.logger.error("Failed to initialize template environment: %s", e)
             raise
 
-    def generate(self, days: int = 1) -> Newsletter:
+    async def generate(self, days: int = 1) -> Newsletter:
         """Generate a newsletter from articles published in last N days."""
         try:
             self.logger.info("Generating newsletter for last %s days", days)
@@ -49,7 +49,7 @@ class NewsletterGenerator:
             # Generate HTML from template
             try:
                 template = self.env.get_template("newsletter.html")
-                html_content = template.render(
+                html_content = await template.render_async(
                     articles=articles,
                     date=datetime.now().strftime("%B %d, %Y"),
                     title=f"Daily Newsletter - {datetime.now().strftime('%Y-%m-%d')}",
@@ -89,7 +89,7 @@ class NewsletterGenerator:
             self.logger.error("Unexpected error generating newsletter: %s", str(e))
             raise
 
-    def get_newsletter(self, newsletter_id: int) -> Newsletter:
+    async def get_newsletter(self, newsletter_id: int) -> Newsletter:
         """Get a newsletter by ID."""
         try:
             newsletter = self.db.query(Newsletter).filter_by(id=newsletter_id).first()
@@ -101,7 +101,7 @@ class NewsletterGenerator:
             self.logger.error("Database error fetching newsletter %s: %s", newsletter_id, str(e))
             raise
 
-    def list_newsletters(self, limit: int = 10) -> list[Newsletter]:
+    async def list_newsletters(self, limit: int = 10) -> list[Newsletter]:
         """List recent newsletters."""
         try:
             newsletters = (

@@ -1,7 +1,9 @@
-"""Service for fetching articles from RSS feeds."""
+"""Async service for fetching articles from RSS feeds."""
 
+import asyncio
 from datetime import datetime
 
+import aiohttp
 import feedparser
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -9,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.logging_config import get_logger
 from app.models import Article
 from config import get_settings
+
+logger = get_logger(__name__)
 
 
 class ArticleFetcher:
@@ -18,27 +22,55 @@ class ArticleFetcher:
         self.db = db
         self.settings = get_settings()
         self.logger = get_logger(__name__)
+        self._session: aiohttp.ClientSession | None = None
 
-    def fetch_all(self, refresh: bool = False) -> list[Article]:
+    async def fetch_all(self, refresh: bool = False) -> list[Article]:
         """Fetch articles from all configured RSS feeds."""
         articles = []
-        for feed_url in self.settings.rss_feed_list:
-            try:
-                feed_articles = self.fetch_from_feed(feed_url, refresh)
-                articles.extend(feed_articles)
-                self.logger.info(
-                    "Successfully fetched %s articles from %s", len(feed_articles), feed_url
-                )
-            except Exception as e:
-                self.logger.error("Failed to fetch articles from %s: %s", feed_url, str(e))
-                continue
+
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=30),
+            connector=aiohttp.TCPConnector(limit=20),
+        ) as session:
+            self._session = session
+
+            tasks = []
+            for feed_url in self.settings.rss_feed_list:
+                task = self.fetch_from_feed(session, feed_url, refresh)
+                tasks.append(task)
+
+            # Execute all fetches concurrently
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.error("Feed fetch failed: %s", str(result))
+                    continue
+                if result:
+                    articles.extend(result)
+
         return articles
 
-    def fetch_from_feed(self, feed_url: str, refresh: bool = False) -> list[Article]:
+    async def fetch_from_feed(
+        self,
+        session: aiohttp.ClientSession,
+        feed_url: str,
+        refresh: bool = False,
+    ) -> list[Article]:
         """Fetch articles from a single RSS feed."""
         try:
             self.logger.info("Fetching articles from %s", feed_url)
-            feed = feedparser.parse(feed_url)
+
+            # Use aiohttp for async HTTP requests
+            async with session.get(feed_url) as response:
+                if response.status != 200:
+                    self.logger.warning("HTTP %s from %s", response.status, feed_url)
+                    return []
+
+                feed_content = await response.text()
+
+            # Parse with feedparser (still sync, but fast)
+            feed = feedparser.parse(feed_content)
 
             if feed.bozo and feed.bozo_exception:
                 self.logger.warning(
@@ -52,21 +84,23 @@ class ArticleFetcher:
             articles = []
             for entry in feed.entries:
                 try:
-                    article = self._process_entry(entry, feed_url, feed, refresh)
+                    article = await self._process_entry(entry, feed_url, feed, refresh)
                     if article:
                         articles.append(article)
                 except Exception as e:
                     self.logger.error("Error processing entry from %s: %s", feed_url, str(e))
                     continue
 
-            self._commit_articles(articles)
+            await self._commit_articles(articles)
             return articles
 
         except Exception as e:
             self.logger.error("Failed to parse feed %s: %s", feed_url, str(e))
             raise
 
-    def _process_entry(self, entry, feed_url: str, feed, refresh: bool = False) -> Article | None:
+    async def _process_entry(
+        self, entry, feed_url: str, feed, refresh: bool = False
+    ) -> Article | None:
         """Process a single feed entry into an Article."""
         if not hasattr(entry, "link") or not entry.link:
             self.logger.warning("Entry missing link, skipping")
@@ -121,7 +155,7 @@ class ArticleFetcher:
             self.logger.error("Error creating article from %s: %s", entry.link, e)
             return None
 
-    def _commit_articles(self, articles: list[Article]) -> None:
+    async def _commit_articles(self, articles: list[Article]) -> None:
         """Commit articles to database with error handling."""
         if not articles:
             return

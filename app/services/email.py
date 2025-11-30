@@ -53,7 +53,7 @@ class EmailService:
             )
             return False
 
-    def send_to_all_subscribers(self, newsletter: Newsletter, db_session) -> dict[str, int]:
+    async def send_to_all_subscribers(self, newsletter: Newsletter, db_session) -> dict[str, int]:
         """Send newsletter to all active subscribers.
 
         Args:
@@ -87,18 +87,3 @@ class EmailService:
         except Exception as e:
             logger.error("Failed to send newsletter %s: %s", newsletter.id, e)
             return {"success": 0, "failure": len(subscribers)}
-
-        # for subscriber in subscribers:
-        #     if self.send_newsletter(subscriber, newsletter):
-        #         success_count += 1
-        #     else:
-        #         failure_count += 1
-
-        # logger.info(
-        #     "Finished sending newsletter %s: %s successes, %s failures",
-        #     newsletter.id,
-        #     success_count,
-        #     failure_count,
-        # )
-
-        # return {"success": success_count, "failure": failure_count}

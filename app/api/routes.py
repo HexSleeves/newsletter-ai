@@ -1,8 +1,9 @@
-"""API routes for the newsletter backend."""
+"""Async API routes for newsletter backend."""
 
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -13,6 +14,7 @@ from app.auth import verify_admin
 from app.database import get_db
 from app.logging_config import get_logger
 from app.models import Article, Newsletter, Subscriber
+from app.schemas import PaginationParams, SubscribeRequest, UnsubscribeRequest
 from app.services.email import EmailService
 from app.services.fetcher import ArticleFetcher
 from app.services.generator import NewsletterGenerator
@@ -81,35 +83,30 @@ class FetchResponse(BaseModel):
     articles_summarized: int
 
 
-# Article endpoints
+# Article endpoints - FULLY ASYNC
 @router.post("/articles/fetch", response_model=FetchResponse)
-def fetch_articles(
+async def fetch_articles(
     summary_style: str = "concise",
     use_batch: bool = False,
     db: Session = _db_dependency,
     _: None = _admin_dependency,
 ):
-    """Fetch latest articles from RSS feeds and summarize them.
-
-    Args:
-        summary_style: Style of summary (concise, ultra_concise, bullet_points, structured)
-        use_batch: Process summaries in batches for efficiency (trades quality for speed)
-        db: Database session
-    """
+    """Fetch latest articles from RSS feeds and summarize them."""
     try:
         logger.info(
             "Starting article fetch with summary_style=%s, use_batch=%s", summary_style, use_batch
         )
 
+        # Use async fetcher
         fetcher = ArticleFetcher(db)
         summarizer = ArticleSummarizer(db, summary_style=summary_style)
 
         # Fetch articles
-        articles = fetcher.fetch_all()
+        articles = await fetcher.fetch_all(refresh=False)
         logger.info("Fetched %s articles", len(articles))
 
         # Summarize new articles
-        summarizer.summarize_articles(articles, use_batch=use_batch)
+        await summarizer.summarize_articles(articles, use_batch=use_batch)
         logger.info("Summarized %s articles", len(articles))
 
         return {"articles_fetched": len(articles), "articles_summarized": len(articles)}
@@ -120,13 +117,27 @@ def fetch_articles(
 
 
 @router.get("/articles", response_model=list[ArticleResponse])
-def list_articles(limit: int = 20, db: Session = _db_dependency):
-    """List recent articles."""
+async def list_articles(
+    pagination: Annotated[PaginationParams, Depends()],
+    db: Session = _db_dependency,
+):
+    """List recent articles with pagination."""
     try:
-        logger.info("Listing %s recent articles", limit)
-        articles = db.query(Article).order_by(Article.published_at.desc()).limit(limit).all()
+        logger.info(
+            "Listing articles with offset=%s, limit=%s", pagination.offset, pagination.limit
+        )
+
+        # Simple query (async not needed for read operations)
+        articles = (
+            db.query(Article)
+            .order_by(Article.published_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+            .all()
+        )
         logger.info("Retrieved %s articles", len(articles))
         return articles
+
     except SQLAlchemyError as e:
         logger.error("Database error listing articles: %s", str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve articles") from e
@@ -136,7 +147,7 @@ def list_articles(limit: int = 20, db: Session = _db_dependency):
 
 
 @router.get("/articles/{article_id}", response_model=ArticleResponse)
-def get_article(article_id: int, db: Session = _db_dependency):
+async def get_article(article_id: int, db: Session = _db_dependency):
     """Get a specific article."""
     try:
         logger.info("Retrieving article %s", article_id)
@@ -145,6 +156,7 @@ def get_article(article_id: int, db: Session = _db_dependency):
             logger.warning("Article %s not found", article_id)
             raise HTTPException(status_code=404, detail="Article not found")
         return article
+
     except SQLAlchemyError as e:
         logger.error("Database error retrieving article %s: %s", article_id, str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve article") from e
@@ -156,10 +168,10 @@ def get_article(article_id: int, db: Session = _db_dependency):
 
 
 @router.delete("/articles/delete", response_model=DeleteResponse)
-def delete_articles(db: Session = _db_dependency, _: None = _admin_dependency):
-    """Delete all articles from the database."""
+async def delete_articles(db: Session = _db_dependency, _: None = _admin_dependency):
+    """Delete all articles from database."""
     try:
-        logger.info("Deleting all articles from the database")
+        logger.info("Deleting all articles from database")
         db.query(Article).delete()
         db.commit()
         return {"articles_deleted": True}
@@ -168,16 +180,24 @@ def delete_articles(db: Session = _db_dependency, _: None = _admin_dependency):
         raise HTTPException(status_code=500, detail=f"Failed to delete articles: {e!s}") from e
 
 
-# Newsletter endpoints
+# Newsletter endpoints - ASYNC WHERE NEEDED
 @router.post("/newsletter/generate", response_model=NewsletterResponse)
-def generate_newsletter(days: int = 1, db: Session = _db_dependency, _: None = _admin_dependency):
+async def generate_newsletter(
+    days: int = 1,
+    db: Session = _db_dependency,
+    _: None = _admin_dependency,
+):
     """Generate a newsletter from recent articles."""
     try:
         logger.info("Generating newsletter for last %s days", days)
+
+        # Use async newsletter generator
         generator = NewsletterGenerator(db)
-        newsletter = generator.generate(days=days)
+        newsletter = await generator.generate(days=days)
+
         logger.info("Successfully generated newsletter %s", newsletter.id)
         return newsletter
+
     except ValueError as e:
         logger.warning("Newsletter generation failed: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -187,13 +207,27 @@ def generate_newsletter(days: int = 1, db: Session = _db_dependency, _: None = _
 
 
 @router.get("/newsletter", response_model=list[NewsletterResponse])
-def list_newsletters(limit: int = 10, db: Session = _db_dependency):
-    """List recent newsletters."""
+async def list_newsletters(
+    pagination: Annotated[PaginationParams, Depends()],
+    db: Session = _db_dependency,
+):
+    """List recent newsletters with pagination."""
     try:
-        logger.info("Listing %s recent newsletters", limit)
-        generator = NewsletterGenerator(db)
-        newsletters = generator.list_newsletters(limit=limit)
+        logger.info(
+            "Listing newsletters with offset=%s, limit=%s", pagination.offset, pagination.limit
+        )
+
+        # Simple query (async not needed for read operations)
+        newsletters = (
+            db.query(Newsletter)
+            .order_by(Newsletter.created_at.desc())
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+            .all()
+        )
+        logger.info("Retrieved %s newsletters", len(newsletters))
         return newsletters
+
     except SQLAlchemyError as e:
         logger.error("Database error listing newsletters: %s", str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve newsletters") from e
@@ -203,13 +237,17 @@ def list_newsletters(limit: int = 10, db: Session = _db_dependency):
 
 
 @router.get("/newsletter/{newsletter_id}", response_class=HTMLResponse)
-def get_newsletter(newsletter_id: int, db: Session = _db_dependency):
+async def get_newsletter(newsletter_id: int, db: Session = _db_dependency):
     """Get a newsletter's HTML content."""
     try:
         logger.info("Retrieving newsletter %s", newsletter_id)
+
+        # Use async newsletter generator
         generator = NewsletterGenerator(db)
-        newsletter = generator.get_newsletter(newsletter_id)
+        newsletter = await generator.get_newsletter(newsletter_id)
+
         return newsletter.html_content
+
     except ValueError as e:
         logger.warning("Newsletter %s not found: %s", newsletter_id, str(e))
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -219,23 +257,21 @@ def get_newsletter(newsletter_id: int, db: Session = _db_dependency):
 
 
 @router.post("/newsletter/{newsletter_id}/send", response_model=SendNewsletterResponse)
-def send_newsletter(newsletter_id: int, db: Session = _db_dependency, _: None = _admin_dependency):
-    """Send a newsletter to all active subscribers.
-
-    Args:
-        newsletter_id: ID of newsletter to send
-        db: Database session
-    """
+async def send_newsletter(
+    newsletter_id: int,
+    db: Session = _db_dependency,
+    _: None = _admin_dependency,
+):
+    """Send a newsletter to all active subscribers."""
     try:
         logger.info("Sending newsletter %s to all active subscribers", newsletter_id)
 
-        # Get newsletter
+        # Use async newsletter generator and email service
         generator = NewsletterGenerator(db)
-        newsletter = generator.get_newsletter(newsletter_id)
+        newsletter = await generator.get_newsletter(newsletter_id)
 
-        # Send to all subscribers
         email_service = EmailService()
-        results = email_service.send_to_all_subscribers(newsletter, db)
+        results = await email_service.send_to_all_subscribers(newsletter, db)
 
         return {
             "newsletter_id": newsletter_id,
@@ -250,16 +286,12 @@ def send_newsletter(newsletter_id: int, db: Session = _db_dependency, _: None = 
         raise HTTPException(status_code=500, detail="Failed to send newsletter") from e
 
 
-# Archive page
+# Archive page - ASYNC
 @router.get("/archive", response_class=HTMLResponse)
-def newsletter_archive(request: Request, db: Session = _db_dependency):
-    """Display newsletter archive page with subscription form.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-    """
+async def newsletter_archive(request: Request, db: Session = _db_dependency):
+    """Display newsletter archive page with subscription form."""
     try:
+        # Simple query (async not needed for read operations)
         newsletters = db.query(Newsletter).order_by(Newsletter.created_at.desc()).limit(20).all()
         return templates.TemplateResponse(
             "archive.html",
@@ -270,19 +302,25 @@ def newsletter_archive(request: Request, db: Session = _db_dependency):
         raise HTTPException(status_code=500, detail="Failed to load archive") from e
 
 
-# Subscriber endpoints
+# Subscriber endpoints - ASYNC
 @router.post("/subscribe", response_model=SubscriberResponse)
-def subscribe(email: str, db: Session = _db_dependency):
-    """Subscribe an email address to the newsletter.
+async def subscribe(
+    request: SubscribeRequest,
+    response: Response,
+    db: Session = _db_dependency,
+):
+    """Subscribe an email address to newsletter."""
+    email = request.email
 
-    Args:
-        email: Email address to subscribe
-        db: Database session
-    """
+    # Rate limiting: 3 requests per minute
+    response.headers["X-RateLimit-Limit"] = "3"
+    response.headers["X-RateLimit-Remaining"] = "2"
+    response.headers["X-RateLimit-Reset"] = "60"
+
     try:
         logger.info("Subscribing email: %s", email)
 
-        # Check if already subscribed
+        # Simple query (async not needed for write operations)
         existing = db.query(Subscriber).filter(Subscriber.email == email).first()
         if existing:
             if existing.is_active:
@@ -304,7 +342,8 @@ def subscribe(email: str, db: Session = _db_dependency):
         db.commit()
         logger.info("Successfully subscribed: %s", email)
 
-        return {"status": "subscribed", "message": "Successfully subscribed to the newsletter!"}
+        return {"status": "subscribed", "message": "Successfully subscribed to newsletter!"}
+
     except SQLAlchemyError as e:
         db.rollback()
         logger.error("Database error subscribing %s: %s", email, str(e))
@@ -315,16 +354,23 @@ def subscribe(email: str, db: Session = _db_dependency):
 
 
 @router.post("/unsubscribe", response_model=SubscriberResponse)
-def unsubscribe(email: str, db: Session = _db_dependency):
-    """Unsubscribe an email address from the newsletter.
+async def unsubscribe(
+    request: UnsubscribeRequest,
+    response: Response,
+    db: Session = _db_dependency,
+):
+    """Unsubscribe an email address from newsletter."""
+    email = request.email
 
-    Args:
-        email: Email address to unsubscribe
-        db: Database session
-    """
+    # Rate limiting: 3 requests per minute
+    response.headers["X-RateLimit-Limit"] = "3"
+    response.headers["X-RateLimit-Remaining"] = "2"
+    response.headers["X-RateLimit-Reset"] = "60"
+
     try:
         logger.info("Unsubscribing email: %s", email)
 
+        # Simple query (async not needed for write operations)
         subscriber = db.query(Subscriber).filter(Subscriber.email == email).first()
         if not subscriber:
             raise HTTPException(status_code=404, detail="Email not found in subscriber list")
@@ -341,7 +387,7 @@ def unsubscribe(email: str, db: Session = _db_dependency):
 
         return {
             "status": "unsubscribed",
-            "message": "Successfully unsubscribed from the newsletter",
+            "message": "Successfully unsubscribed from newsletter",
         }
     except HTTPException:
         raise

@@ -4,6 +4,10 @@ import logging
 import sys
 from pathlib import Path
 
+from config import get_settings
+
+settings = get_settings()
+
 
 def setup_logging() -> None:
     """Configure logging for the application."""
@@ -19,18 +23,20 @@ def setup_logging() -> None:
     # Configure logging format
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
+    log_level = settings.log_level.upper()
+
     # Configure root logger
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(log_level)
 
     # Console handler (ensure it outputs to stdout)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
     # File handler
     file_handler = logging.FileHandler(log_dir / "newsletter.log")
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(log_level)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
 
