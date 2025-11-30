@@ -71,17 +71,17 @@ class ArticleSummarizer:
                 HumanMessage(content=user_msg),
             ]
 
-            summary = call_llm_with_retry(self.llm, messages)
+            summary = await call_llm_with_retry(self.llm, messages)
             logger.info("Successfully generated summary for article %s", article.id)
 
             # Save to database with error handling
             try:
                 article.summary = summary
-                await self.db.commit()
+                self.db.commit()
                 logger.debug("Saved summary for article %s", article.id)
             except Exception as e:
                 logger.error("Database error saving summary for article %s: %s", article.id, str(e))
-                await self.db.rollback()
+                self.db.rollback()
                 raise
 
             return summary
@@ -173,7 +173,7 @@ class ArticleSummarizer:
                     HumanMessage(content=user_msg),
                 ]
 
-                summary = call_llm_with_retry(self.llm, messages)
+                summary = await call_llm_with_retry(self.llm, messages)
                 logger.info("Successfully generated batch summary for articles %s", batch_ids)
 
                 # Parse response and assign summaries
@@ -181,10 +181,10 @@ class ArticleSummarizer:
 
                 for article, summary in zip(batch, summaries, strict=False):
                     article.summary = summary
-                    await self.db.add(article)
+                    self.db.add(article)
 
                 # Commit batch to database
-                await self.db.commit()
+                self.db.commit()
                 logger.info("Successfully saved batch summaries for articles %s", batch_ids)
 
             except Exception as e:

@@ -23,6 +23,7 @@ dependencies = [
     # Email delivery
     "resend>=2.19.0",
     "ruff>=0.14.7",
+    "setuptools>=80.9.0",
 ]
 
 [project.optional-dependencies]

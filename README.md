@@ -40,7 +40,7 @@ A powerful FastAPI-based backend service for automating the creation and distrib
 
    ```bash
    git clone <repository-url>
-   cd newsletter-ai
+   cd newsletter_backend
    ```
 
 2. **Install dependencies:**

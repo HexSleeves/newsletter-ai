@@ -1,6 +1,6 @@
 """Email service for sending newsletters."""
 
-from typing import Any
+import asyncio
 
 import resend
 
@@ -18,7 +18,7 @@ class EmailService:
         """Initialize email service with Resend API key."""
         resend.api_key = settings.resend_api_key
 
-    def send_newsletter(
+    async def send_newsletter(
         self,
         subscriber: Subscriber,
         newsletter: Newsletter,
@@ -42,10 +42,10 @@ class EmailService:
                 "html": newsletter.html_content,
             }
 
-            email: Any = resend.Emails.send(params)
-            logger.info(
-                "Sent newsletter %s to %s: %s", newsletter.id, subscriber.email, email["id"]
+            email: resend.Emails.SendResponse = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: resend.Emails.send(params)
             )
+            logger.info("Sent newsletter %s to %s: %s", newsletter.id, subscriber.email, email.id)
             return True
         except Exception as e:
             logger.error(
@@ -64,9 +64,7 @@ class EmailService:
             Dictionary with success and failure counts
         """
         subscribers = db_session.query(Subscriber).filter(Subscriber.is_active).all()
-
         logger.info("Sending newsletter %s to %s subscribers", newsletter.id, len(subscribers))
-
         params: list[resend.Emails.SendParams] = [
             {
                 "from": "Test Newsletter <onboarding@resend.dev>",
@@ -78,7 +76,17 @@ class EmailService:
         ]
 
         try:
-            resend.Batch.send(params)
+            # Run the synchronous resend.Batch.send() in an executor to avoid blocking
+            emails = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: resend.Batch.send(params)
+            )
+            logger.debug("Batch send response: %s", emails)
+
+            for email in emails.data:
+                logger.debug(
+                    "Sent newsletter %s to %s: %s", newsletter.id, email["to"], email["id"]
+                )
+
             logger.info(
                 "Successfully sent newsletter %s to %s subscribers", newsletter.id, len(subscribers)
             )

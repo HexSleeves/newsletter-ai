@@ -1,6 +1,8 @@
 """Database models for articles and newsletters."""
 
-from datetime import datetime
+# pylint: disable=not-callable
+
+from datetime import datetime, timedelta
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,7 +10,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
-# pylint: disable=not-callable
 class Article(Base):
     """News article from RSS feed."""
 
@@ -33,8 +34,26 @@ class Article(Base):
     # Relationships
     newsletter_articles: Mapped[list["NewsletterArticle"]] = relationship(back_populates="article")
 
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"<Article(id={self.id}, title='{self.title[:50]}...')>"
 
-# pylint: disable=not-callable
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"Article: {self.title}"
+
+    @property
+    def has_summary(self) -> bool:
+        """Check if the article has a summary."""
+        return self.summary is not None and len(self.summary.strip()) > 0
+
+    @property
+    def is_recent(self) -> bool:
+        """Check if the article was published recently (within last 7 days)."""
+
+        return (datetime.now(self.published_at.tzinfo) - self.published_at) < timedelta(days=7)
+
+
 class Newsletter(Base):
     """Generated newsletter."""
 
@@ -57,6 +76,19 @@ class Newsletter(Base):
         back_populates="newsletter"
     )
 
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"<Newsletter(id={self.id}, title='{self.title}')>"
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"Newsletter: {self.title}"
+
+    @property
+    def article_count(self) -> int:
+        """Get the number of articles in this newsletter."""
+        return len(self.newsletter_articles)
+
 
 class NewsletterArticle(Base):
     """Association table between newsletters and articles."""
@@ -71,8 +103,16 @@ class NewsletterArticle(Base):
     newsletter: Mapped["Newsletter"] = relationship(back_populates="newsletter_articles")
     article: Mapped["Article"] = relationship(back_populates="newsletter_articles")
 
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"""<NewsletterArticle(id={self.id},
+            newsletter_id={self.newsletter_id}, article_id={self.article_id})>"""
 
-# pylint: disable=not-callable
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        return f"NewsletterArticle: newsletter {self.newsletter_id} -> article {self.article_id}"
+
+
 class Subscriber(Base):
     """Newsletter subscriber."""
 
@@ -89,3 +129,20 @@ class Subscriber(Base):
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
     )
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"<Subscriber(id={self.id}, email='{self.email}', active={self.is_active})>"
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        status = "active" if self.is_active else "inactive"
+        return f"Subscriber: {self.email} ({status})"
+
+    def deactivate(self) -> None:
+        """Deactivate the subscriber."""
+        self.is_active = False
+
+    def activate(self) -> None:
+        """Activate the subscriber."""
+        self.is_active = True

@@ -35,6 +35,20 @@ class LLMProvider(str, Enum):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    cors_origins: str = "*"
+
+    # Authentication
+    admin_api_key: str = "change-me-in-production"
+
+    # Database
+    database_url: str = "sqlite:///./newsletter.db"
+
+    # RSS Feeds
+    rss_feeds: str = "https://techcrunch.com/feed/,https://www.theverge.com/rss/index.xml"
+
+    # Email
+    resend_api_key: str | None = None
+
     # Logging
     log_level: str | None = "INFO"
 
@@ -48,18 +62,6 @@ class Settings(BaseSettings):
     google_api_key: str | None = None
     openrouter_api_key: str | None = None
     z_ai_api_key: str | None = None
-
-    # Email
-    resend_api_key: str | None = None
-
-    # Authentication
-    admin_api_key: str = "change-me-in-production"
-
-    # Database
-    database_url: str = "sqlite:///./newsletter.db"
-
-    # RSS Feeds
-    rss_feeds: str = "https://techcrunch.com/feed/,https://www.theverge.com/rss/index.xml"
 
     class Config:
         """Configuration settings for the newsletter backend."""
@@ -88,6 +90,11 @@ class Settings(BaseSettings):
         if required_key and not getattr(self, required_key, None):
             raise ValueError(f"{required_key} is required for {self.llm_provider} provider.")
         return self
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        """Get the CORS allow origins."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
     def rss_feed_list(self) -> list[str]:

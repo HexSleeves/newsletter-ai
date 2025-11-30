@@ -9,6 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
 from app.database import init_db
 from app.logging_config import setup_logging
+from config import get_settings
+
+settings = get_settings()
+
+print(settings)
+
 
 # Suppress Pydantic V1 compatibility warning from langchain-core on Python 3.14+
 # This is a known issue with langchain-core's internal compatibility shims
@@ -42,10 +48,11 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update in production
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # allow_origin_regex
+    allow_origins=[settings.cors_allow_origins],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
 
 # Include API router (async or sync based on availability)
@@ -55,4 +62,4 @@ app.include_router(api_router, prefix="/api")
 @app.get("/")
 def root():
     """Health check endpoint."""
-    return {"status": "ok", "service": "newsletter-ai-backend"}
+    return {"status": "ok", "service": "newsletter_backend"}
