@@ -22,6 +22,10 @@ router = APIRouter()
 logger = get_logger(__name__)
 templates = Jinja2Templates(directory="app/templates")
 
+# Dependency injection singletons
+_db_dependency = Depends(get_db)
+_admin_dependency = Depends(verify_admin)
+
 
 # Response models
 class ArticleResponse(BaseModel):
@@ -82,8 +86,8 @@ class FetchResponse(BaseModel):
 def fetch_articles(
     summary_style: str = "concise",
     use_batch: bool = False,
-    db: Session = Depends(get_db),
-    _: None = Depends(verify_admin),
+    db: Session = _db_dependency,
+    _: None = _admin_dependency,
 ):
     """Fetch latest articles from RSS feeds and summarize them.
 
@@ -112,11 +116,11 @@ def fetch_articles(
 
     except Exception as e:
         logger.error("Error in fetch_articles: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch articles: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to fetch articles: {e!s}") from e
 
 
 @router.get("/articles", response_model=list[ArticleResponse])
-def list_articles(limit: int = 20, db: Session = Depends(get_db)):
+def list_articles(limit: int = 20, db: Session = _db_dependency):
     """List recent articles."""
     try:
         logger.info("Listing %s recent articles", limit)
@@ -132,7 +136,7 @@ def list_articles(limit: int = 20, db: Session = Depends(get_db)):
 
 
 @router.get("/articles/{article_id}", response_model=ArticleResponse)
-def get_article(article_id: int, db: Session = Depends(get_db)):
+def get_article(article_id: int, db: Session = _db_dependency):
     """Get a specific article."""
     try:
         logger.info("Retrieving article %s", article_id)
@@ -152,7 +156,7 @@ def get_article(article_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/articles/delete", response_model=DeleteResponse)
-def delete_articles(db: Session = Depends(get_db), _: None = Depends(verify_admin)):
+def delete_articles(db: Session = _db_dependency, _: None = _admin_dependency):
     """Delete all articles from the database."""
     try:
         logger.info("Deleting all articles from the database")
@@ -161,14 +165,12 @@ def delete_articles(db: Session = Depends(get_db), _: None = Depends(verify_admi
         return {"articles_deleted": True}
     except Exception as e:
         logger.error("Error deleting articles: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to delete articles: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to delete articles: {e!s}") from e
 
 
 # Newsletter endpoints
 @router.post("/newsletter/generate", response_model=NewsletterResponse)
-def generate_newsletter(
-    days: int = 1, db: Session = Depends(get_db), _: None = Depends(verify_admin)
-):
+def generate_newsletter(days: int = 1, db: Session = _db_dependency, _: None = _admin_dependency):
     """Generate a newsletter from recent articles."""
     try:
         logger.info("Generating newsletter for last %s days", days)
@@ -185,7 +187,7 @@ def generate_newsletter(
 
 
 @router.get("/newsletter", response_model=list[NewsletterResponse])
-def list_newsletters(limit: int = 10, db: Session = Depends(get_db)):
+def list_newsletters(limit: int = 10, db: Session = _db_dependency):
     """List recent newsletters."""
     try:
         logger.info("Listing %s recent newsletters", limit)
@@ -201,7 +203,7 @@ def list_newsletters(limit: int = 10, db: Session = Depends(get_db)):
 
 
 @router.get("/newsletter/{newsletter_id}", response_class=HTMLResponse)
-def get_newsletter(newsletter_id: int, db: Session = Depends(get_db)):
+def get_newsletter(newsletter_id: int, db: Session = _db_dependency):
     """Get a newsletter's HTML content."""
     try:
         logger.info("Retrieving newsletter %s", newsletter_id)
@@ -217,9 +219,7 @@ def get_newsletter(newsletter_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/newsletter/{newsletter_id}/send", response_model=SendNewsletterResponse)
-def send_newsletter(
-    newsletter_id: int, db: Session = Depends(get_db), _: None = Depends(verify_admin)
-):
+def send_newsletter(newsletter_id: int, db: Session = _db_dependency, _: None = _admin_dependency):
     """Send a newsletter to all active subscribers.
 
     Args:
@@ -252,7 +252,7 @@ def send_newsletter(
 
 # Archive page
 @router.get("/archive", response_class=HTMLResponse)
-def newsletter_archive(request: Request, db: Session = Depends(get_db)):
+def newsletter_archive(request: Request, db: Session = _db_dependency):
     """Display newsletter archive page with subscription form.
 
     Args:
@@ -272,7 +272,7 @@ def newsletter_archive(request: Request, db: Session = Depends(get_db)):
 
 # Subscriber endpoints
 @router.post("/subscribe", response_model=SubscriberResponse)
-def subscribe(email: str, db: Session = Depends(get_db)):
+def subscribe(email: str, db: Session = _db_dependency):
     """Subscribe an email address to the newsletter.
 
     Args:
@@ -315,7 +315,7 @@ def subscribe(email: str, db: Session = Depends(get_db)):
 
 
 @router.post("/unsubscribe", response_model=SubscriberResponse)
-def unsubscribe(email: str, db: Session = Depends(get_db)):
+def unsubscribe(email: str, db: Session = _db_dependency):
     """Unsubscribe an email address from the newsletter.
 
     Args:

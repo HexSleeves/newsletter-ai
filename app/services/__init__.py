@@ -4,6 +4,6 @@ from app.services.summarizer import ArticleSummarizer
 
 __all__ = [
     "ArticleFetcher",
-    "NewsletterGenerator",
     "ArticleSummarizer",
+    "NewsletterGenerator",
 ]

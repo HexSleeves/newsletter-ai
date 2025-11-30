@@ -3,6 +3,7 @@
 from enum import Enum
 from functools import lru_cache
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 # Claude Models
@@ -17,6 +18,8 @@ from pydantic_settings import BaseSettings
 # o4-mini-2025-04-16 - $1.10
 # gpt-4.1-mini-2025-04-14 - $0.40
 
+FAKE_API_KEY = "change-me-in-production"
+
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
@@ -28,6 +31,7 @@ class LLMProvider(str, Enum):
     Z_AI = "z-ai"
 
 
+# pylint: disable=all
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -35,7 +39,7 @@ class Settings(BaseSettings):
     llm_provider: LLMProvider = LLMProvider.OPENAI
     llm_model: str | None = None  # If not set, uses provider default
 
-    # API Keys (optional - only needed for chosen provider)
+    # API Keys (only the one for your chosen provider is required)
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
     google_api_key: str | None = None
@@ -59,6 +63,28 @@ class Settings(BaseSettings):
 
         env_file = ".env"
         case_sensitive = False
+
+    @field_validator("admin_api_key")
+    def validate_admin_api_key(cls, v: str) -> str:  # noqa: N805
+        """Ensure admin API key is not the default value in production."""
+        if v == FAKE_API_KEY:
+            raise ValueError("Admin API key must be changed from the default value.")
+        return v
+
+    @model_validator(mode="after")
+    def validate_llm_provider_keys(self) -> "Settings":
+        """Validate that the required API key is provided for the chosen LLM provider."""
+        required_key = {
+            LLMProvider.ANTHROPIC: "anthropic_api_key",
+            LLMProvider.OPENAI: "openai_api_key",
+            LLMProvider.GEMINI: "google_api_key",
+            LLMProvider.OPENROUTER: "openrouter_api_key",
+            LLMProvider.Z_AI: "z_ai_api_key",
+        }.get(self.llm_provider)
+
+        if required_key and not getattr(self, required_key, None):
+            raise ValueError(f"{required_key} is required for {self.llm_provider} provider.")
+        return self
 
     @property
     def rss_feed_list(self) -> list[str]:

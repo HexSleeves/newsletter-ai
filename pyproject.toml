@@ -40,8 +40,22 @@ line-length    = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["BLE001"]
+select = [
+    "E",
+    "F",
+    "I",
+    "N",
+    "W",
+    "UP",
+    "B",
+    "C4",
+    "PIE",
+    "SIM",
+    "TID",
+    "Q",
+    "RUF",
+]
+ignore = ["BLE001", "E501", "N818"]
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = ["broad-exception-caught"]

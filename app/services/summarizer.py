@@ -21,7 +21,6 @@ from config import LLMProvider, get_settings
 class SummarizationError(Exception):
     """Raised when article summarization fails after all retry attempts."""
 
-    pass
 
 
 logger = get_logger(__name__)
@@ -187,7 +186,7 @@ class ArticleSummarizer:
                     else:
                         raise SummarizationError(
                             f"Failed to summarize article {article.id} after {max_retries} "
-                            f"attempts: {str(e)}"
+                            f"attempts: {e!s}"
                         ) from e
 
         except Exception as e:
