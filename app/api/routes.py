@@ -10,11 +10,11 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.auth import verify_admin
+from app.api.auth import verify_admin
+from app.api.schemas import PaginationParams, SubscribeRequest, UnsubscribeRequest
 from app.database import get_db
 from app.logging_config import get_logger
 from app.models import Article, Newsletter, Subscriber
-from app.schemas import PaginationParams, SubscribeRequest, UnsubscribeRequest
 from app.services.email import EmailService
 from app.services.fetcher import ArticleFetcher
 from app.services.generator import NewsletterGenerator

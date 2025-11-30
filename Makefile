@@ -9,6 +9,7 @@ help:
 	@echo "  make dev          - Run the server with auto-reload (development mode)"
 	@echo "  make test         - Run tests"
 	@echo "  make lint         - Run linter (ruff)"
+	@echo "  make lint-fix     - Fix lint errors (ruff)"
 	@echo "  make format       - Format code with ruff"
 	@echo "  make clean        - Remove cache and build artifacts"
 
@@ -26,6 +27,9 @@ test:
 
 lint:
 	ruff check .
+
+lint-fix:
+	ruff check --fix .
 
 format:
 	ruff format .

@@ -4,10 +4,10 @@ from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.llm import call_llm_with_retry, get_llm
+from app.llm.llm import call_llm_with_retry, get_llm
+from app.llm.prompts import format_articles_batch, format_prompt, get_prompt, truncate_content
 from app.logging_config import get_logger
 from app.models import Article
-from app.prompts import format_prompt, get_prompt, truncate_content
 
 
 class SummarizationError(Exception):
@@ -149,8 +149,6 @@ class ArticleSummarizer:
             Batch processing trades some quality for efficiency.
             Use for high-volume processing where speed matters.
         """
-        from app.prompts import format_articles_batch
-
         unsummarized = [a for a in articles if not a.summary]
         logger.info("Batch summarizing %d articles in batches of %d", len(unsummarized), batch_size)
 
